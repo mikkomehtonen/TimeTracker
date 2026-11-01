@@ -6,7 +6,7 @@ logic or tests.
 
 ## Getting started
 
-You need Go 1.26.8 or later, GNU Make, curl, and a POSIX-compatible shell.
+You need Go 1.24.4 or later, GNU Make, curl, and a POSIX-compatible shell.
 The race detector requires CGO support and a C compiler, such as GCC or Clang.
 The initial tool installation and vulnerability checks require an internet connection.
 
