@@ -23,3 +23,32 @@
 **Takeaway**: When a review fix changes a contract the story spells out, update the AC/approach text (with dated rationale) in the same commit, then re-run both reviewers.
 
 ---
+## Page-wide asset/template changes need one table-driven test per affected route
+**Date**: 2026-11-01
+**Area**: testing
+**What happened**: Adding a `<link rel="icon">` to all three templates, the new `TestPagesLinkFavicon` covered only `/login` and `/register`; code review Failed it (score 5) because a future edit dropping the link from `app.html` would keep the test green.
+**Takeaway**: When a change touches every template, cover every affected route in one `[]struct{path string; j jar}` table test — use `tr.registerAndLogin("alice", "password1234")` (web_test.go) for the authed `/` page.
+
+---
+
+## SVG assets can be visually verified with rsvg-convert in this environment
+**Date**: 2026-11-01
+**Area**: workflow
+**What happened**: Needed to confirm the new favicon reads as a stopwatch at icon sizes; `rsvg-convert` and ImageMagick `convert` are installed at /usr/bin, so rendering the SVG at 128px and 16px side-by-side proved legibility before commit.
+**Takeaway**: For any SVG/image asset change, rasterize with `rsvg-convert -w 16 -h 16` and eyeball it; don't ship an icon based on geometry math alone.
+
+---
+## Browsers auto-request /favicon.ico, never /favicon.svg
+**Date**: 2026-11-01
+**Area**: workflow
+**What happened**: Serving the favicon at the root path /favicon.svg was described as the "conventional path", but code review noted browsers without an explicit icon link only probe /favicon.ico — the SVG icon appears purely because all three templates carry <link rel="icon">.
+**Takeaway**: The root SVG route is just a clean canonical URL; if a fallback for SVG-less clients is ever wanted, add a /favicon.ico asset or <link rel="alternate icon">, not another root SVG path.
+
+---
+## ServeFileFS fixes embed asset types, not logging or caching
+**Date**: 2026-11-01
+**Area**: architecture
+**What happened**: Review caught that http.ServeFileFS logs nothing on open errors (toHTTPError maps them to silent 404/500 responses) and embed.FS entries report zero ModTime, so ServeContent emits no ETag/Last-Modified and no 304s; its wins were correct extension-derived types, Content-Length, and Range.
+**Takeaway**: For embedded assets, keep one assetRoutes table validated at boot with fs.Stat (panics like template.Must — note fs.Stat needs the un-slashed embed spelling while ServeFileFS needs the leading-slash one) plus a table test asserting 200 + Content-Type for every served route; caching would need explicit Cache-Control or a content-hash URL.
+
+---

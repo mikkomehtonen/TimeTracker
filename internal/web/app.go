@@ -3,6 +3,7 @@ package web
 import (
 	"embed"
 	"html/template"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -17,8 +18,21 @@ import (
 //go:embed templates/*.html
 var templateFS embed.FS
 
-//go:embed web/app.css web/app.js
+//go:embed web/app.css web/app.js web/favicon.svg
 var assetFS embed.FS
+
+// assetRoutes pairs every served URL path with its name inside assetFS (the
+// exact //go:embed spelling, fs.ValidPath form); New() checks the pairing
+// against the embed at startup so a typo'd or forgotten entry crashes the
+// boot instead of serving silent 404s forever.
+var assetRoutes = []struct {
+	urlPath string
+	fsName  string
+}{
+	{"/assets/app.css", "web/app.css"},
+	{"/assets/app.js", "web/app.js"},
+	{"/favicon.svg", "web/favicon.svg"},
+}
 
 // App owns the HTTP surface: routes, session + CSRF middleware, and the
 // embedded templates and assets.
@@ -40,6 +54,11 @@ func New(db *store.DB, hasher auth.Hasher) *App {
 		timer:    &timer.Service{DB: db},
 	}
 	a.tmpl = template.Must(template.ParseFS(templateFS, "templates/*.html"))
+	for _, route := range assetRoutes {
+		if _, err := fs.Stat(assetFS, route.fsName); err != nil {
+			panic("embedded asset missing for " + route.urlPath + ": " + route.fsName)
+		}
+	}
 	return a
 }
 
@@ -60,20 +79,21 @@ func (a *App) Handler() http.Handler {
 	mux.HandleFunc("POST /timer/stop", a.requireUser(a.handleTimerStop))
 	mux.HandleFunc("POST /entries/{id}/update", a.requireUser(a.handleEntryUpdate))
 	mux.HandleFunc("POST /entries/{id}/delete", a.requireUser(a.handleEntryDelete))
-	mux.HandleFunc("GET /assets/app.css", a.handleAsset("web/app.css", "text/css; charset=utf-8"))
-	mux.HandleFunc("GET /assets/app.js", a.handleAsset("web/app.js", "text/javascript; charset=utf-8"))
+	for _, route := range assetRoutes {
+		mux.HandleFunc("GET "+route.urlPath, serveAsset(route.fsName))
+	}
+	// Canonicalization-only alias: the favicon is served at the root path
+	// above; do not add a second served route for it.
+	mux.Handle("GET /assets/favicon.svg", http.RedirectHandler("/favicon.svg", http.StatusMovedPermanently))
 	return a.loadSession(a.csrf(mux))
 }
 
-func (a *App) handleAsset(name, contentType string) http.HandlerFunc {
+// serveAsset is package-level, not an *App method: it reads only the
+// package-level assetFS. ServeFileFS takes the leading-slash spelling of the
+// fs.ValidPath name given in assetRoutes.
+func serveAsset(name string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		data, err := assetFS.ReadFile(name)
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", contentType)
-		_, _ = w.Write(data)
+		http.ServeFileFS(w, r, assetFS, "/"+name)
 	}
 }
 

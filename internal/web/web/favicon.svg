@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TimeTracker stopwatch">
+  <rect x="26.5" y="4" width="11" height="10" rx="2.5" fill="#006a42"/>
+  <circle cx="32" cy="38" r="21" fill="#ffffff" stroke="#006a42" stroke-width="7"/>
+  <path d="M32 38 L42 28" stroke="#005932" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="32" cy="38" r="4" fill="#005932"/>
+</svg>

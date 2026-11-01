@@ -625,3 +625,63 @@ func TestRunningEntryNotEditableOrDeletableOverHTTP(t *testing.T) {
 		t.Errorf("total entries = %d, want still 1", n)
 	}
 }
+
+func TestStaticAssetsServedWithCorrectTypes(t *testing.T) {
+	tr := newTester(t) // subtests must stay sequential: tr is shared
+	assets := []struct {
+		path     string
+		wantType string
+		wantBody string
+	}{
+		{"/assets/app.css", "text/css; charset=utf-8", ""},
+		{"/assets/app.js", "text/javascript; charset=utf-8", ""},
+		{"/favicon.svg", "image/svg+xml", `aria-label="TimeTracker stopwatch"`},
+	}
+	for _, a := range assets {
+		t.Run(a.path, func(t *testing.T) {
+			rec := tr.do("GET", a.path, nil, jar{})
+			if rec.Code != http.StatusOK {
+				t.Fatalf("GET %s = %d, want 200", a.path, rec.Code)
+			}
+			if ct := rec.Header().Get("Content-Type"); ct != a.wantType {
+				t.Errorf("GET %s content-type = %q, want %q", a.path, ct, a.wantType)
+			}
+			if a.wantBody != "" && !strings.Contains(rec.Body.String(), a.wantBody) {
+				t.Errorf("GET %s body lacks %q", a.path, a.wantBody)
+			}
+		})
+	}
+}
+
+func TestFaviconAssetAliasRedirectsToCanonicalPath(t *testing.T) {
+	tr := newTester(t)
+	rec := tr.do("GET", "/assets/favicon.svg", nil, jar{})
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("GET /assets/favicon.svg = %d, want 301", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/favicon.svg" {
+		t.Errorf("redirect location = %q, want /favicon.svg", loc)
+	}
+}
+
+func TestPagesLinkFavicon(t *testing.T) {
+	tr := newTester(t)
+	authed := tr.registerAndLogin("alice", "password1234")
+	pages := []struct {
+		path string
+		j    jar
+	}{
+		{"/", authed},
+		{"/login", jar{}},
+		{"/register", jar{}},
+	}
+	for _, p := range pages {
+		rec := tr.do("GET", p.path, nil, p.j)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s = %d, want 200", p.path, rec.Code)
+		}
+		if !strings.Contains(tr.body(rec), `rel="icon" href="/favicon.svg"`) {
+			t.Errorf("%s page does not link the favicon", p.path)
+		}
+	}
+}
