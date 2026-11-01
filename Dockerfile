@@ -15,7 +15,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" \
   -o /out/timetracker ./cmd/timetracker
 
-FROM alpine:3.22
+FROM alpine:3.24
 # tzdata: `TZ` must work for the server-rendered edit-form defaults, which
 # derive wall-clock values and offsets from time.Local; without tzdata the
 # container silently renders UTC defaults.
