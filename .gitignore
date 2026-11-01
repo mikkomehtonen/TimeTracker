@@ -12,3 +12,7 @@
 /go.work
 /go.work.sum
 .DS_Store
+
+# Local application data (SQLite DB + WAL sidecars): never commit.
+/data/
+

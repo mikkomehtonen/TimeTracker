@@ -1,14 +1,21 @@
 # TimeTracker
 
-A lightweight Go project starter with a runnable command-line application and
-preconfigured development tools. The application does not yet include business
-logic or tests.
+A multi-user, server-rendered web time tracker. Users register, start and stop
+a timer per project, rename and retire projects, and edit or delete closed
+entries. The UI is plain
+`html/template` pages plus one progressive-enhancement JavaScript file and one
+CSS file, both embedded into the single binary; persistence is SQLite via the
+pure-Go `modernc.org/sqlite` driver (no C dependency for the app itself).
 
 ## Getting started
 
-You need Go 1.24.4 or later, GNU Make, curl, and a POSIX-compatible shell.
-The race detector requires CGO support and a C compiler, such as GCC or Clang.
-The initial tool installation and vulnerability checks require an internet connection.
+You need Go 1.26.10 (pinned in `go.mod`; with the default `GOTOOLCHAIN=auto`,
+any recent Go works because the pinned toolchain is downloaded automatically),
+GNU Make, curl, and a POSIX-compatible shell. The race detector requires CGO
+support and a C compiler, such as GCC or Clang. Node.js (CI pins the 22 major
+line) is optional locally: one frontend test runs the real `app.js` under Node and
+self-skips when it is missing. The initial tool installation and vulnerability
+checks require an internet connection.
 
 ```sh
 make setup
@@ -16,10 +23,15 @@ make check
 make run
 ```
 
+`make run` (via `go run`) serves the app at `http://localhost:8080` and stores
+data in `./data/timetracker.db`; `make build` produces `bin/timetracker`, and
+both accept `-addr` and `-data-dir` flags to change those defaults. The `data/`
+directory is ignored by Git.
+
 The Go module uses the placeholder name `example.com/timetracker` because the
 repository does not have a remote URL configured. Once the final URL is known,
-update the module name in `go.mod` and the local import prefix in `.golangci.yml`.
-Update any internal application imports as well.
+update the module name in `go.mod`, the `goimports` local prefix in
+`.golangci.yml`, and all internal application imports.
 
 ## Commands
 
@@ -51,8 +63,8 @@ directory, so changing the version selects the new tool.
 [golangci-lint](https://golangci-lint.run/docs/welcome/install/local/) is installed
 from an official binary release. [govulncheck](https://go.dev/doc/security/vuln/)
 is installed separately, so the tools do not add dependencies to the application
-module. The application has no external dependencies yet, so `go.sum` is
-intentionally absent. Add it to version control when you introduce dependencies.
+module. The application has one real dependency (`modernc.org/sqlite`), so
+`go.sum` is committed and kept in sync by `make tidy-check`.
 
 ## Quality checks
 
@@ -74,6 +86,11 @@ all tests with `go test -race -shuffle=on -count=1 ./...`, so failing tests and
 detected data races fail the command. Both commands are part of `make check`,
 which is also used by the pre-commit hook and CI.
 
+`internal/web/frontend_test.go` pins the browser timezone contract by running
+the embedded `app.js` under Node with a DOM shim; it self-skips when Node is
+missing, so CI installs Node 22 via `actions/setup-node` to keep those
+assertions from silently disappearing.
+
 ## Git hooks
 
 `make setup` or `make hooks` sets the repository's local `core.hooksPath` to
@@ -84,8 +101,9 @@ hooks automatically.
 check fails. The checks run on a copy of the staged content in a temporary
 directory. Unstaged changes and untracked files therefore do not affect the
 result. Tools are reused from the project's `.bin/` directory, and the temporary
-directory is removed afterward. Always stage fixes with `git add` before trying
-to commit again.
+directory is removed afterward. The hook also aborts unless `Makefile` and
+`go.mod` are staged. Always stage fixes with `git add` before trying to commit
+again.
 
 The hook also runs vulnerability checks, so committing requires an internet
 connection. Git's `--no-verify` option can bypass the local hook. To enforce
@@ -94,11 +112,28 @@ checks on the server as well, configure GitHub branch rules to require the CI
 
 ## Project structure and development
 
-`cmd/timetracker/main.go` is the application's entry point. Add application
-packages under `internal/` as needed, with tests alongside them in `*_test.go`
-files. Run `make fmt` and `make check` before pushing changes.
+`cmd/timetracker/main.go` is the entry point: it opens the SQLite database,
+builds the application, and runs an `http.Server` with graceful shutdown.
+Application code lives under `internal/`, with tests alongside in `*_test.go`
+files:
 
-GitHub Actions runs `make check` on push and pull request events. CI uses the Go
-version specified in `go.mod`. Update its patch version when Go security updates
-are released. Dependabot proposes updates to Go dependencies and GitHub Actions
-weekly.
+| Package | Responsibility |
+| --- | --- |
+| `internal/store` | SQLite schema, migrations, and queries (timestamps are stored in a fixed-width UTC format so text order equals chronological order). |
+| `internal/auth` | PBKDF2 password hashing, opaque session tokens, and cookie names and lifetimes. |
+| `internal/projects` | Project create/rename/retire rules with per-user case-insensitive names. |
+| `internal/timer` | Timer start/stop with automatic project switching and the one-running-entry-per-user invariant. |
+| `internal/web` | HTTP handlers, session/CSRF middleware, templates, and the embedded `app.css`/`app.js` assets. |
+
+Pages are fully server-rendered and work with JavaScript disabled; `app.js`
+only enhances them (live elapsed-time ticking and browser-local clock fields).
+Mutating requests are POSTs gated by a CSRF token and end in a redirect with a
+one-shot flash message on success and on validation failures (transport-level
+errors answer 4xx/5xx directly). Run `make fmt` and `make check` before pushing
+changes.
+
+GitHub Actions runs `make check` (and installs Node 22 for the frontend
+contract test) on push, pull request, and manual dispatch events. CI uses the Go version
+specified in `go.mod`; update its patch version when Go security updates are
+released so the vulnerability gate stays passable. Dependabot proposes updates
+to Go dependencies and GitHub Actions weekly.

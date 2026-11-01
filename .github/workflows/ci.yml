@@ -24,8 +24,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-          # Enable caching once the project has a go.sum file.
-          cache: false
+          cache: dependabot
       - name: Install Node
         # frontend_test runs the real app.js under Node; pin it so the JS
         # contract assertions cannot silently skip in CI.
