@@ -28,6 +28,18 @@ data in `./data/timetracker.db`; `make build` produces `bin/timetracker`, and
 both accept `-addr` and `-data-dir` flags to change those defaults. The `data/`
 directory is ignored by Git.
 
+To run it in a container instead (the image builds the same static binary,
+runs as user `app` (uid/gid 10001), and honors `TZ`):
+
+```sh
+docker build -t timetracker .
+docker run --rm -p 8080:8080 -v timetracker-data:/data timetracker
+```
+
+The `-v` named volume persists the database; without it, data dies with the
+container. If you bind-mount a host directory instead, chown it to
+`10001:10001` first, or the app cannot open the database.
+
 The Go module uses the placeholder name `example.com/timetracker` because the
 repository does not have a remote URL configured. Once the final URL is known,
 update the module name in `go.mod`, the `goimports` local prefix in
@@ -54,6 +66,7 @@ update the module name in `go.mod`, the `goimports` local prefix in
 | `make build` | Build the application as `bin/timetracker`. |
 | `make run` | Run the application. |
 | `make check` | Run formatting checks, lint, vet, tests, module checks, a build, and vulnerability checks. |
+| `make docker` | Build the container image with the builder tag derived from `go.mod` (needs a Docker daemon). |
 
 `fmt`, `fmt-check`, `lint`, and `vuln` automatically install the tool they need.
 Tool versions are pinned in `Makefile`. To upgrade a tool, change its version and
@@ -133,7 +146,11 @@ errors answer 4xx/5xx directly). Run `make fmt` and `make check` before pushing
 changes.
 
 GitHub Actions runs `make check` (and installs Node 22 for the frontend
-contract test) on push, pull request, and manual dispatch events. CI uses the Go version
-specified in `go.mod`; update its patch version when Go security updates are
-released so the vulnerability gate stays passable. Dependabot proposes updates
-to Go dependencies and GitHub Actions weekly.
+contract test) plus `make docker`, which builds the image with a builder tag
+derived from `go.mod`, on push, pull request, and manual dispatch events.
+`make docker` needs a Docker daemon, so it is not part of `make check` or the
+pre-commit hook; run it locally before pushing Dockerfile changes. CI uses the
+Go version specified in `go.mod`; update its patch version when Go security
+updates are released so the vulnerability gate stays passable. Dependabot
+proposes updates to Go dependencies, the Dockerfile's base images, and GitHub
+Actions weekly.

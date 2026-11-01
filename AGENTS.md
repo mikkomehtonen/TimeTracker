@@ -21,4 +21,4 @@ Minimal Go starter template (module `example.com/timetracker`). Single entrypoin
 
 ## Style
 
-- `.editorconfig` is enforced: Go files use tabs; all other files 2 spaces. CI (`.github/workflows/ci.yml`) runs the same `make check` as the pre-commit hook.
+- `.editorconfig` is enforced: Go files use tabs; all other files 2 spaces. CI (`.github/workflows/ci.yml`) runs the same `make check` as the pre-commit hook, plus `make docker` (image build; requires a Docker daemon and is deliberately not part of `check` or the hook).

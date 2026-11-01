@@ -4,7 +4,7 @@
 **Date**: 2026-11-01
 **Area**: workflow
 **What happened**: Two bulk `python3 str.replace` edits to Go files didn't apply (gofmt had realigned const spacing, so the oldString never matched); one shipped in a commit message claiming the change, and the code reviewer caught the gap.
-**Takeaway**: After any scripted edit, grep for the replacement text (or assert in the script itself) before `git add`; never trust a commit message the tree doesn't back up.
+**Takeaway**: Guard every scripted replacement with an `assert oldString in s` (one recurrence was caught this way; the other shipped and a reviewer caught it), then grep the replacement text in the tree before `git add`; never trust a commit message the tree doesn't back up.
 
 ---
 

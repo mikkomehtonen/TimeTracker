@@ -35,3 +35,8 @@ jobs:
         run: make tools
       - name: Check
         run: make check
+      - name: Docker build
+        # Keeps the Dockerfile's builder pin from drifting: GO_VERSION is
+        # derived from go.mod, the single source of truth. Reproduce locally
+        # with `make docker`.
+        run: make docker

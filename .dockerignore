@@ -1,0 +1,21 @@
+.git
+.github
+.bin
+bin
+coverage
+data
+.opencode
+stories
+docs
+.dockerignore
+Dockerfile
+.gitignore
+.golangci.yml
+.githooks
+Makefile
+coverage.out
+*.md
+# Local env files (see .gitignore): never send to the build daemon.
+# Note: unlike .gitignore, this also hides .env.example from the context.
+.env
+.env.*

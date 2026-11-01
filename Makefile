@@ -8,7 +8,10 @@ TOOLS_DIR := $(CURDIR)/.bin
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint/$(GOLANGCI_LINT_VERSION)/golangci-lint
 GOVULNCHECK := $(TOOLS_DIR)/govulncheck/$(GOVULNCHECK_VERSION)/govulncheck
 
-.PHONY: help setup hooks tools fmt fmt-check lint vet test coverage tidy tidy-check verify vuln build run check
+# Stripped by default; override with `make build LDFLAGS=` for a debug binary.
+LDFLAGS ?= -s -w
+
+.PHONY: help setup hooks tools fmt fmt-check lint vet test coverage tidy tidy-check verify vuln build run docker check
 
 help: ## List available development commands.
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -65,9 +68,14 @@ vuln: $(GOVULNCHECK) ## Check for known vulnerabilities (requires internet acces
 
 build: ## Build the application as bin/timetracker.
 	mkdir -p bin
-	$(GO) build -trimpath -o bin/timetracker ./cmd/timetracker
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/timetracker ./cmd/timetracker
 
 run: ## Run the application.
 	$(GO) run ./cmd/timetracker
+
+docker: ## Build the Docker image with the builder tag derived from go.mod (needs a Docker daemon).
+	GO_VERSION="$$(sed -n 's/^go[[:space:]]\{1,\}\([0-9][0-9.]*\).*/\1/p' go.mod)-alpine"; \
+	echo "builder tag: $$GO_VERSION"; \
+	docker build --build-arg GO_VERSION="$$GO_VERSION" .
 
 check: fmt-check lint vet test tidy-check verify build vuln ## Run all CI checks.
