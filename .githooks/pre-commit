@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+snapshot=$(mktemp -d "${TMPDIR:-/tmp}/timetracker-pre-commit.XXXXXX")
+trap 'rm -rf "$snapshot"' EXIT
+trap 'exit 1' HUP INT TERM
+
+# Check the Git index: working tree changes may not be part of the commit.
+git checkout-index --all --prefix="$snapshot/"
+
+if [ ! -f "$snapshot/Makefile" ] || [ ! -f "$snapshot/go.mod" ]; then
+    printf '%s\n' 'Commit blocked: stage Makefile and go.mod as well.' >&2
+    exit 1
+fi
+
+# Prevent Git environment settings for the original repository from affecting checks.
+git_env_vars=$(git rev-parse --local-env-vars)
+for variable in $git_env_vars; do
+    unset "$variable"
+done
+
+printf '%s\n' 'Checking staged content: make check'
+if ! make -C "$snapshot" TOOLS_DIR="$repo_root/.bin" check; then
+    printf '%s\n' 'Commit blocked: fix the failed checks and stage your changes.' >&2
+    exit 1
+fi

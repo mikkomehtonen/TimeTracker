@@ -1,0 +1,13 @@
+/.bin/
+/bin/
+/coverage/
+*.test
+*.prof
+
+# Local settings and secrets.
+.env
+.env.*
+!.env.example
+/go.work
+/go.work.sum
+.DS_Store
