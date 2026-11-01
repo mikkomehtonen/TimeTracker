@@ -3,6 +3,7 @@
 /coverage/
 *.test
 *.prof
+.opencode
 
 # Local settings and secrets.
 .env
