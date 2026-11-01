@@ -26,6 +26,12 @@ jobs:
           go-version-file: go.mod
           # Enable caching once the project has a go.sum file.
           cache: false
+      - name: Install Node
+        # frontend_test runs the real app.js under Node; pin it so the JS
+        # contract assertions cannot silently skip in CI.
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
       - name: Install tools
         run: make tools
       - name: Check

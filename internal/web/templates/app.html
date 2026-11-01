@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TimeTracker</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body class="app-page">
+  <header class="topbar">
+    <h1>TimeTracker</h1>
+    <div class="account">
+      <span class="who">{{.Username}}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button type="submit" class="link-button">Sign out</button>
+      </form>
+    </div>
+  </header>
+
+  <main>
+    {{if .Flash}}<p class="flash flash-{{.FlashKind}}" role="status">{{.Flash}}</p>{{end}}
+
+    <section class="card timer-card {{if .Running}}is-running{{else}}is-idle{{end}}" aria-label="Timer">
+      {{if .Running}}
+        <p class="tracking">Tracking <strong>{{.Running.ProjectName}}</strong></p>
+        <p class="elapsed"><time id="elapsed" datetime="{{.Running.StartRFC3339}}" data-start="{{.Running.StartRFC3339}}">{{.Running.Elapsed}}</time></p>
+        <p class="since">Started at <time class="localizable" datetime="{{.Running.StartRFC3339}}">{{.Running.SinceLocal}}</time></p>
+        <form method="post" action="/timer/stop">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <button type="submit" class="button button-primary">Stop timer</button>
+        </form>
+      {{else}}
+        <p class="idle-note">No timer running. Pick a project and press “Start tracking”.</p>
+      {{end}}
+    </section>
+
+    <section class="card projects-card" aria-label="Active projects">
+      <h2>Projects</h2>
+      {{if not .Active}}
+        <p class="empty">No projects yet. Create your first project below.</p>
+      {{else}}
+        <ul class="project-list">
+          {{range .Active}}
+          <li class="project-row">
+            <span class="project-name">{{.Name}}</span>
+            <form method="post" action="/timer/start/{{.ID}}">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <button type="submit" class="button button-primary">Start tracking</button>
+            </form>
+            <details class="project-actions">
+              <summary>Project options</summary>
+              <form method="post" action="/projects/{{.ID}}/rename">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <label class="sr-only" for="rename-{{.ID}}">New name for {{.Name}}</label>
+                <input id="rename-{{.ID}}" type="text" name="name" value="{{.Name}}" maxlength="100" required>
+                <button type="submit" class="button">Rename project</button>
+              </form>
+              <form method="post" action="/projects/{{.ID}}/retire">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <button type="submit" class="button button-danger">Retire project</button>
+              </form>
+            </details>
+          </li>
+          {{end}}
+        </ul>
+      {{end}}
+      <form class="create-form" method="post" action="/projects">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label class="sr-only" for="new-project">New project name</label>
+        <input id="new-project" type="text" name="name" maxlength="100" placeholder="New project name" required>
+        <button type="submit" class="button">Create project</button>
+      </form>
+    </section>
+
+    {{if .Retired}}
+    <section class="card retired-card" aria-label="Retired projects">
+      <h2>Retired projects</h2>
+      <ul class="project-list">
+        {{range .Retired}}
+        <li class="project-row is-retired">
+          <span class="project-name">{{.Name}}</span>
+          <details class="project-actions">
+            <summary>Project options</summary>
+            <form method="post" action="/projects/{{.ID}}/rename">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <label class="sr-only" for="rename-{{.ID}}">New name for {{.Name}}</label>
+              <input id="rename-{{.ID}}" type="text" name="name" value="{{.Name}}" maxlength="100" required>
+              <button type="submit" class="button">Rename project</button>
+            </form>
+            <form method="post" action="/projects/{{.ID}}/unretire">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <button type="submit" class="button">Un-retire project</button>
+            </form>
+          </details>
+        </li>
+        {{end}}
+      </ul>
+    </section>
+    {{end}}
+
+    <section class="card entries-card" aria-label="Recent entries">
+      <h2>Recent entries</h2>
+      {{if not .Entries}}
+        <p class="empty">No entries yet. Start a timer to log time.</p>
+      {{else}}
+        <ul class="entry-list">
+          {{range .Entries}}{{$e := .}}
+          <li class="entry-row">
+            <p class="entry-summary">
+              <span class="entry-project">{{.ProjectName}}</span>
+              <span class="entry-time"><time class="localizable" datetime="{{.StartRFC}}">{{.StartLocal}}</time>
+                – <time class="localizable" datetime="{{.EndRFC}}">{{.EndLocal}}</time></span>
+              <span class="entry-duration">{{.Duration}}</span>
+            </p>
+            <details class="entry-actions">
+              <summary>Edit entry</summary>
+              <form method="post" action="/entries/{{.ID}}/update">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <label class="sr-only" for="entry-project-{{.ID}}">Project</label>
+                <select id="entry-project-{{.ID}}" name="project_id">
+                  {{range $.Active}}<option value="{{.ID}}" {{if eq .ID $e.ProjectID}}selected{{end}}>{{.Name}}</option>{{end}}
+                  {{range $.Retired}}<option value="{{.ID}}" {{if eq .ID $e.ProjectID}}selected{{end}}>{{.Name}} (retired)</option>{{end}}
+                </select>
+                <input type="hidden" id="off-start-{{.ID}}" name="start_offset_minutes" value="{{.StartOffsetMinutes}}">
+                <label class="sr-only" for="entry-start-{{.ID}}">Start time</label>
+                <input id="entry-start-{{.ID}}" type="datetime-local" name="start_at" step="1"
+                  value="{{.StartLocal}}" data-utc="{{.StartRFC}}" data-offset="off-start-{{.ID}}" required>
+                <input type="hidden" id="off-end-{{.ID}}" name="end_offset_minutes" value="{{.EndOffsetMinutes}}">
+                <label class="sr-only" for="entry-end-{{.ID}}">End time</label>
+                <input id="entry-end-{{.ID}}" type="datetime-local" name="end_at" step="1"
+                  value="{{.EndLocal}}" data-utc="{{.EndRFC}}" data-offset="off-end-{{.ID}}" required>
+                <button type="submit" class="button">Save changes</button>
+              </form>
+              <form method="post" action="/entries/{{.ID}}/delete">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <button type="submit" class="button button-danger">Delete entry</button>
+              </form>
+            </details>
+          </li>
+          {{end}}
+        </ul>
+      {{end}}
+    </section>
+  </main>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>
